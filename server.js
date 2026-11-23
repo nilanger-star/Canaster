@@ -4,11 +4,11 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
-const C = require('./public/logic.js');
+const C = require('./logic.js');
 
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'games.json');
-const PUBLIC = path.join(__dirname, 'public');
+const PUBLIC = __dirname;   // alle Dateien liegen im selben Ordner
 
 /* ---------- Spielstände (im Speicher, zusätzlich in games.json gesichert) ---------- */
 const games = new Map();
