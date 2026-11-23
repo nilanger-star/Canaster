@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121629">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%226%22 y=%222%22 width=%2220%22 height=%2228%22 rx=%224%22 fill=%22%23f7f4ee%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2214%22 text-anchor=%22middle%22 fill=%22%23e0474c%22%3E%E2%99%A5%3C/text%3E%3C/svg%3E">
+<title>Canasta Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* Canasta heißt „Korb“: Mitternachtsblauer Tisch, Porzellan-Karten, Rattan-Geflecht als Signatur
+   (Kartenrücken, fertige Canastas). Layout: Gegner oben, Stapel + Körbe in der Mitte, eigener Fächer unten. */
+:root{
+  --night:#121629;
+  --table:#1b2140;
+  --raise:#252c52;
+  --porcelain:#f7f4ee;
+  --ink:#1a1d2b;
+  --rattan:#e8b86a;
+  --rattan-deep:#b9853a;
+  --hibiscus:#e0474c;
+  --ice:#8fd3ff;
+  --mist:#a3abd0;
+  --text:#eef0fa;
+  --ok:#7ee0a5;
+  --display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cw:76px; --ch:108px; --mw:38px; --mh:54px;
+  --r-card:10px; --r-panel:18px;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  color-scheme:dark;
+}
+@media (max-width:640px){ :root{ --cw:58px; --ch:84px; --mw:30px; --mh:43px; } }
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:
+    radial-gradient(1200px 700px at 50% 38%, #26306000 0%, transparent 70%),
+    radial-gradient(900px 520px at 50% 40%, rgba(70,84,160,.38), transparent 70%),
+    var(--night);
+  color:var(--text); font-family:var(--body); font-size:16px; line-height:1.45;
+  -webkit-tap-highlight-color:transparent; overflow-x:hidden;
+}
+body.dragging{cursor:grabbing;user-select:none}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:2.5px solid var(--rattan);outline-offset:3px;border-radius:8px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+.muted{color:var(--mist)}
+.hidden{display:none!important}
+
+/* ---------- Buttons & Felder ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;font-weight:700;background:var(--raise);color:var(--text);transition:transform .15s var(--ease), background .15s}
+.btn:hover{background:#303867}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--rattan);color:#2a1d07}
+.btn.primary:hover{background:#f1c67c}
+.btn.ghost{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(163,171,208,.35)}
+.btn.small{min-height:36px;padding:0 14px;font-size:.92rem}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.icon-btn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.06);color:var(--text)}
+.icon-btn:hover{background:rgba(255,255,255,.12)}
+.icon-btn svg{width:20px;height:20px}
+.field{width:100%;height:52px;border-radius:14px;border:0;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1.5px rgba(163,171,208,.25);padding:0 16px;font-size:1.05rem}
+.field:focus{outline:none;box-shadow:inset 0 0 0 2px var(--rattan)}
+label.lbl{display:block;font-weight:700;margin-bottom:8px}
+.seg{display:flex;gap:6px;background:rgba(255,255,255,.06);padding:5px;border-radius:999px}
+.seg button{flex:1;min-height:42px;border-radius:999px;font-weight:700;color:var(--mist)}
+.seg button[aria-pressed="true"]{background:var(--porcelain);color:var(--ink)}
+
+/* ---------- Karten ---------- */
+.card{position:relative;width:var(--cw);height:var(--ch);border-radius:var(--r-card);background:var(--porcelain);color:var(--ink);
+  box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 6px 14px rgba(5,8,25,.45), 0 1px 2px rgba(5,8,25,.5);
+  font-family:var(--display);user-select:none;flex:none;overflow:hidden}
+.card .rk{position:absolute;top:5px;left:7px;font-size:calc(var(--cw)*.36);font-weight:800;line-height:.9;letter-spacing:-.04em}
+.card .st{position:absolute;top:calc(var(--cw)*.42);left:8px;font-size:calc(var(--cw)*.24);line-height:1}
+.card .pip{position:absolute;right:6px;bottom:2px;font-size:calc(var(--cw)*.62);line-height:1;opacity:.92}
+.card.red{color:var(--hibiscus)}
+.card.wild::after{content:"";position:absolute;right:-18px;top:8px;width:60px;height:10px;transform:rotate(45deg);
+  background:repeating-linear-gradient(90deg,var(--rattan) 0 6px,var(--rattan-deep) 6px 8px)}
+.card.joker{background:linear-gradient(155deg,#fff 0%,#f6ecd6 100%)}
+.card.joker .rk{font-size:calc(var(--cw)*.2);top:8px;letter-spacing:0}
+.card.joker .pip{right:50%;bottom:50%;transform:translate(50%,50%);font-size:calc(var(--cw)*.6);color:var(--rattan-deep)}
+.card.mini{--cw:var(--mw);--ch:var(--mh);border-radius:6px;box-shadow:0 2px 5px rgba(5,8,25,.45)}
+.card.mini .st{left:4px;top:calc(var(--cw)*.44)}
+.card.mini .rk{left:4px;top:3px}
+.card.mini .pip{display:none}
+.card.mini.wild::after{width:40px;height:7px;right:-14px;top:5px}
+.card.back,.weave{background:
+    repeating-linear-gradient(45deg, rgba(232,184,106,.85) 0 5px, transparent 5px 10px),
+    repeating-linear-gradient(-45deg, rgba(185,133,58,.75) 0 5px, transparent 5px 10px),
+    #2b3160}
+.card.back{box-shadow:inset 0 0 0 4px var(--porcelain), 0 6px 14px rgba(5,8,25,.45)}
+.card.empty{background:transparent;box-shadow:inset 0 0 0 2px rgba(163,171,208,.25)}
+
+/* ---------- Lobby ---------- */
+.lobby{max-width:980px;margin:0 auto;padding:28px 18px 60px;display:grid;gap:22px}
+.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:24px;align-items:center;min-height:300px}
+.hero h1{font-size:clamp(3.2rem,9vw,6.4rem);line-height:.9;font-weight:800;letter-spacing:-.045em}
+.hero p{font-size:1.1rem;color:var(--mist);max-width:42ch;margin:14px 0 0}
+.hero-fan{position:relative;height:260px}
+.hero-fan .card{position:absolute;left:50%;top:30px;--cw:112px;--ch:160px;transform-origin:50% 120%;transition:transform .9s var(--ease)}
+@media (max-width:760px){.hero{grid-template-columns:1fr;min-height:0}.hero-fan{height:210px;order:-1}.hero-fan .card{--cw:88px;--ch:126px}}
+.panel{background:rgba(27,33,64,.72);border-radius:var(--r-panel);padding:20px;box-shadow:inset 0 0 0 1px rgba(163,171,208,.12);backdrop-filter:blur(8px)}
+.panel h2{font-size:1.35rem;margin-bottom:12px}
+.lobby-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:760px){.lobby-grid{grid-template-columns:1fr}}
+.stack{display:grid;gap:14px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.codebox{display:flex;gap:8px}
+.codebox input{width:56px;height:64px;text-align:center;font-family:var(--display);font-size:1.8rem;font-weight:800;text-transform:uppercase;border-radius:14px;border:0;background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1.5px rgba(163,171,208,.25)}
+.codebox input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--rattan)}
+.gamelist{display:grid;gap:8px}
+.gamelist button{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);text-align:left}
+.gamelist button:hover{background:rgba(255,255,255,.1)}
+.gcode{font-family:var(--display);font-weight:800;font-size:1.15rem;letter-spacing:.06em}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:.82rem;font-weight:700;background:rgba(255,255,255,.08);color:var(--mist);white-space:nowrap}
+.pill.gold{background:rgba(232,184,106,.18);color:var(--rattan)}
+.pill.turn{background:var(--rattan);color:#2a1d07}
+.pill.ice{background:rgba(143,211,255,.16);color:var(--ice)}
+.note{padding:12px 16px;border-radius:14px;background:rgba(224,71,76,.14);color:#ffc2c4}
+details.local summary{cursor:pointer;font-weight:700;list-style:none}
+details.local summary::-webkit-details-marker{display:none}
+
+/* ---------- Warteraum ---------- */
+.wait{max-width:900px;margin:0 auto;padding:22px 18px 60px;display:grid;gap:20px}
+.wait-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}
+@media (max-width:760px){.wait-grid{grid-template-columns:1fr}}
+.roundtable{position:relative;aspect-ratio:1/1;max-width:400px;margin:0 auto;width:100%}
+.roundtable .felt{position:absolute;inset:25%;border-radius:50%;background:radial-gradient(circle at 50% 40%,#2c356a,#1b2140);box-shadow:inset 0 0 0 6px rgba(232,184,106,.25), 0 20px 50px rgba(0,0,0,.4);display:grid;place-items:center;text-align:center}
+.roundtable .felt b{font-family:var(--display);font-size:2.2rem;letter-spacing:.08em}
+.seat{position:absolute;width:30%;transform:translate(-50%,-50%);text-align:center;display:grid;justify-items:center;gap:4px}
+.seat .av{width:56px;height:56px}
+.seat.free .av{background:transparent!important;box-shadow:inset 0 0 0 2px rgba(163,171,208,.35);color:var(--mist)}
+.qr{background:#fff;padding:10px;border-radius:14px;width:max-content}
+.qr img,.qr canvas{display:block;width:132px;height:132px}
+
+/* ---------- Avatare ---------- */
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:800;color:#141729;flex:none;position:relative}
+.av.off::after{content:"";position:absolute;right:0;bottom:0;width:12px;height:12px;border-radius:50%;background:#6b7194;box-shadow:0 0 0 2px var(--night)}
+
+/* ---------- Spieltisch ---------- */
+.game{min-height:100%;display:flex;flex-direction:column;max-width:1200px;margin:0 auto;padding:10px 14px 0}
+.topbar{display:flex;align-items:center;gap:10px;min-height:52px}
+.brand{font-family:var(--display);font-weight:800;font-size:1.35rem;letter-spacing:-.03em}
+.topbar .spacer{flex:1}
+.scores{display:flex;gap:6px;flex-wrap:wrap}
+.scorepill{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border-radius:999px;background:rgba(255,255,255,.06);font-weight:700;font-variant-numeric:tabular-nums}
+.scorepill .dot{width:22px;height:22px;border-radius:50%}
+.scorepill.mine{box-shadow:inset 0 0 0 1.5px var(--rattan)}
+
+
+.opps{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:6px 0 4px}
+.opp{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border-radius:999px;background:rgba(255,255,255,.05);position:relative;transition:box-shadow .3s}
+.opp.active{box-shadow:0 0 0 2px var(--rattan), 0 0 26px rgba(232,184,106,.35)}
+.opp .nm{font-weight:700;line-height:1.1}
+.opp .sub{font-size:.8rem;color:var(--mist)}
+.minibacks{display:flex}
+.minibacks .card{--cw:16px;--ch:23px;border-radius:3px;box-shadow:inset 0 0 0 1.5px var(--porcelain)}
+.minibacks .card+.card{margin-left:-9px}
+.bubble{position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);background:var(--porcelain);color:var(--ink);font-weight:700;font-size:.85rem;padding:6px 12px;border-radius:12px;white-space:nowrap;z-index:5}
+
+.center{display:flex;align-items:center;justify-content:center;gap:clamp(16px,5vw,48px);padding:10px 0 6px}
+.pile{position:relative;display:grid;justify-items:center;gap:6px;border-radius:14px;padding:6px}
+.pile .count{font-size:.85rem;color:var(--mist);font-variant-numeric:tabular-nums}
+.pile .stackwrap{position:relative;width:var(--cw);height:var(--ch)}
+.pile .stackwrap .card{position:absolute;inset:0}
+.pile.can{cursor:pointer}
+.pile.can .stackwrap{animation:nudge 2.2s var(--ease) infinite}
+@keyframes nudge{0%,80%,100%{transform:none}88%{transform:translateY(-6px)}}
+.pile.frozen .stackwrap::after{content:"";position:absolute;inset:-7px;border-radius:15px;box-shadow:0 0 0 2.5px var(--ice), 0 0 22px rgba(143,211,255,.45);pointer-events:none}
+.ticker{text-align:center;color:var(--mist);font-size:.9rem;min-height:1.4em;padding:0 10px}
+
+.sides{display:grid;gap:10px;padding:6px 0 10px}
+.side{border-radius:var(--r-panel);padding:10px 12px;background:rgba(27,33,64,.55)}
+.side.mine{background:rgba(37,44,82,.7);box-shadow:inset 0 0 0 1px rgba(232,184,106,.25)}
+.side-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.side-h h3{font-size:1rem}
+.reds{display:flex}
+.reds .card+.card{margin-left:-14px}
+.baskets{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;min-height:calc(var(--mh) + 28px)}
+.basket{position:relative;border-radius:14px;padding:6px 8px 8px;background:rgba(255,255,255,.04);display:grid;gap:4px;transition:box-shadow .2s, transform .2s var(--ease)}
+.basket .bh{display:flex;justify-content:space-between;gap:8px;font-size:.78rem;color:var(--mist);font-weight:700;font-variant-numeric:tabular-nums}
+.basket .fan{display:flex}
+.basket .fan .card+.card{margin-left:calc(var(--mw) * -.62)}
+.basket.ghost{background:transparent;box-shadow:inset 0 0 0 2px rgba(232,184,106,.55);border-radius:14px}
+.basket.ghost .bh{color:var(--rattan)}
+.basket.drop-ok,.newzone.drop-ok,.pile.drop-ok{box-shadow:0 0 0 2px var(--rattan), 0 0 20px rgba(232,184,106,.3)}
+.basket.drop-hover,.newzone.drop-hover,.pile.drop-hover{transform:scale(1.05);box-shadow:0 0 0 3px var(--porcelain), 0 0 28px rgba(232,184,106,.45)}
+.basket.tap{cursor:pointer}
+/* fertiger Canasta: geflochtener Korb */
+.canasta{width:calc(var(--mw)*2.3);height:calc(var(--mh) + 28px);padding:0;overflow:hidden;display:grid;place-items:center;text-align:center}
+.canasta .weave{position:absolute;inset:0;opacity:.95}
+.canasta.mixed .weave{filter:saturate(.35) brightness(.8)}
+.canasta.wildc .weave{filter:hue-rotate(-18deg) saturate(1.4)}
+.canasta .crest{position:relative;width:calc(var(--mw)*1.35);height:calc(var(--mw)*1.35);border-radius:50%;background:var(--porcelain);color:var(--ink);display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:calc(var(--mw)*.55);box-shadow:0 4px 12px rgba(0,0,0,.35)}
+.canasta.pure .crest{color:var(--hibiscus)}
+.canasta .cmeta{position:absolute;bottom:4px;left:0;right:0;font-size:.72rem;font-weight:800;color:#2a1d07;text-shadow:0 1px 0 rgba(255,255,255,.4)}
+.canasta.new{animation:weaveIn 1s var(--ease)}
+@keyframes weaveIn{0%{transform:scale(.6) rotate(-8deg);opacity:0}60%{transform:scale(1.12) rotate(2deg);opacity:1}100%{transform:none}}
+.newzone{min-width:calc(var(--mw)*2.3);height:calc(var(--mh) + 28px);border-radius:14px;box-shadow:inset 0 0 0 2px rgba(163,171,208,.3);display:grid;place-items:center;color:var(--mist);font-weight:700;font-size:.85rem;text-align:center;padding:0 10px;cursor:pointer;transition:transform .2s var(--ease), box-shadow .2s}
+.empty-side{color:var(--mist);font-size:.9rem;align-self:center}
+
+/* ---------- Hand-Dock ---------- */
+.dock{position:sticky;bottom:0;margin:6px -14px 0;overflow-x:clip;padding:10px 14px calc(8px + env(safe-area-inset-bottom));background:rgba(18,22,41,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:22px 22px 0 0;box-shadow:0 -12px 30px rgba(5,8,25,.45), inset 0 1px 0 rgba(163,171,208,.12);z-index:4}
+.actionbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;min-height:46px}
+.hint{color:var(--mist);font-size:.95rem;text-align:center;flex-basis:100%}
+.hint b{color:var(--text)}
+.chip-sel{font-size:.9rem;font-weight:700;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.08)}
+.chip-sel.ok{color:var(--ok)} .chip-sel.bad{color:#ffb0b3}
+.meter{display:inline-flex;align-items:center;gap:8px}
+.meter .bar{width:70px;height:6px;border-radius:9px;background:rgba(0,0,0,.25);overflow:hidden}
+.meter .bar i{display:block;height:100%;background:#2a1d07}
+.hand{display:flex;flex-direction:column;align-items:center;gap:0;padding:26px 0 4px;touch-action:pan-y}
+.handrow{display:flex;justify-content:center;align-items:flex-end;height:calc(var(--ch) + 14px)}
+.handrow + .handrow{margin-top:calc(var(--ch) * -.45)}
+.slot{transform:translateY(var(--y,0)) rotate(var(--r,0deg));transform-origin:50% 140%;transition:transform .22s var(--ease)}
+.slot .card{cursor:grab;touch-action:none}
+.slot.up{transform:translateY(calc(var(--y,0px) - 22px)) rotate(var(--r,0deg))}
+.slot.up .card{box-shadow:0 0 0 2.5px var(--rattan), 0 14px 24px rgba(5,8,25,.55)}
+.slot.hint-add .card{box-shadow:0 0 0 2px rgba(126,224,165,.65), 0 6px 14px rgba(5,8,25,.45)}
+.slot.lifting .card{opacity:.25}
+@media (hover:hover){.slot:not(.up):hover{transform:translateY(calc(var(--y,0px) - 8px)) rotate(var(--r,0deg))}}
+.watch{padding:18px;text-align:center;color:var(--mist)}
+
+/* Drag-Geist */
+.ghostdrag{position:fixed;left:0;top:0;pointer-events:none;z-index:50;display:flex;filter:drop-shadow(0 18px 24px rgba(0,0,0,.5))}
+.ghostdrag .card+.card{margin-left:calc(var(--cw)*-.7)}
+.ghostdrag .badge{position:absolute;right:-10px;top:-10px;background:var(--rattan);color:#2a1d07;font-weight:800;border-radius:999px;min-width:26px;height:26px;display:grid;place-items:center;font-size:.85rem}
+
+/* ---------- Sheets / Overlays ---------- */
+.scrim{position:fixed;inset:0;background:rgba(8,10,22,.6);z-index:30;display:flex;align-items:flex-end;justify-content:center;animation:fade .2s ease}
+.sheet{width:min(720px,100%);max-height:86vh;overflow:auto;background:var(--table);border-radius:24px 24px 0 0;padding:10px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -20px 60px rgba(0,0,0,.45);animation:up .32s var(--ease)}
+.sheet.center{border-radius:24px;margin:auto;max-height:90vh}
+.scrim.mid{align-items:center;padding:16px}
+.grab{width:44px;height:5px;border-radius:9px;background:rgba(163,171,208,.35);margin:0 auto 12px}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.sheet-h h2{font-size:1.5rem}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+@keyframes fade{from{opacity:0}}
+table.tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:8px 6px;text-align:right;border-bottom:1px solid rgba(163,171,208,.14)}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{font-size:.82rem;color:var(--mist);font-weight:700}
+.tbl .big{font-family:var(--display);font-size:1.25rem;font-weight:800}
+.log{display:grid;gap:6px;font-size:.93rem}
+.log div{padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.04)}
+.rules{display:grid;gap:10px;font-size:.95rem}
+.rules h3{font-size:1.05rem;margin-top:6px;color:var(--rattan)}
+.rules p{margin:0;max-width:66ch}
+.menu{display:grid;gap:6px}
+.menu button{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:rgba(255,255,255,.05);font-weight:700;text-align:left}
+.menu button:hover{background:rgba(255,255,255,.1)}
+.result-hero{text-align:center;padding:8px 0 14px}
+.result-hero h2{font-size:clamp(1.8rem,6vw,2.6rem)}
+.result-cards{display:grid;gap:10px;margin:10px 0 16px}
+.rcard{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.05)}
+.rcard.win{box-shadow:inset 0 0 0 2px var(--rattan)}
+.rcard .total{font-family:var(--display);font-weight:800;font-size:1.7rem;font-variant-numeric:tabular-nums;text-align:right;line-height:1}
+.rcard .detail{font-size:.83rem;color:var(--mist)}
+.cover{min-height:100%;display:grid;place-items:center;text-align:center;padding:24px}
+.cover .av{width:96px;height:96px;font-size:2rem;margin:0 auto 18px}
+
+/* Toasts */
+#toasts{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:grid;gap:8px;justify-items:center;pointer-events:none;width:min(92vw,460px)}
+.toast{background:var(--porcelain);color:var(--ink);padding:10px 18px;border-radius:999px;font-weight:700;box-shadow:0 12px 30px rgba(0,0,0,.4);animation:toastIn .35s var(--ease);text-align:center}
+.toast.err{background:#ffd9da;color:#6d1518}
+.toast.gold{background:var(--rattan);color:#2a1d07}
+.toast.out{opacity:0;transform:translateY(-8px);transition:all .3s}
+@keyframes toastIn{from{transform:translateY(-14px) scale(.96);opacity:0}}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:55}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* Handy */
+@media (max-width:640px){
+  .brand{display:none}.scorepill .nm{display:none}
+  .opps{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:8px;scrollbar-width:none;padding-bottom:30px;margin-bottom:-26px}
+  .opps::-webkit-scrollbar{display:none}
+  .opp{padding:5px 12px 5px 5px;gap:8px;flex:none}
+  .opp .av{width:34px;height:34px;font-size:.85rem}
+  .opp .minibacks{display:none}
+  .opp .nm{font-size:.92rem}
+  .center{padding:4px 0 2px}
+  .side{padding:8px 10px}
+  .hint{font-size:.86rem}
+  .hand{padding-top:22px}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts" aria-live="polite"></div>
+<canvas id="fx" aria-hidden="true"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="/logic.js"></script>
+<script>
+/* Verbindung zum eigenen Server (WebSocket) */
+const NET = (() => {
+  const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k, v){ try { localStorage.setItem(k, v); } catch(e){} } };
+  let ws = null, h = null, pid = store.get('canasta.pid'), name = '', want = null, retry = 0, rid = 0;
+  const waiting = new Map();
+  if (!pid){ pid = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''); store.set('canasta.pid', pid); }
+  const send = o => { if (ws && ws.readyState === 1){ ws.send(JSON.stringify(o)); return true; } return false; };
+  function connect(){
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    const slow = setTimeout(() => h.onConn(false, 'Der Server wacht gerade auf. Beim ersten Aufruf dauert das bis zu einer Minute.'), 2500);
+    ws.onopen = () => {
+      clearTimeout(slow); retry = 0;
+      send({ t: 'hello', pid, name });
+      if (want) send({ t: 'open', code: want });
+      h.onConn(true, '');
+    };
+    ws.onmessage = ev => {
+      let m; try { m = JSON.parse(ev.data); } catch(e){ return; }
+      if (m.t === 'list') h.onList(m.games || []);
+      else if (m.t === 'game'){ if (m.game.code === want) h.onGame(m.game); }
+      else if (m.t === 'notfound'){ if (m.code === want) h.onGame(null); }
+      else if (m.t === 'created' || m.t === 'ack'){
+        const key = m.t === 'created' ? 'create' : m.rid;
+        const w = waiting.get(key); if (!w) return; waiting.delete(key);
+        if (m.t === 'created') w.res(m.code); else if (m.ok) w.res(); else w.rej(new Error(m.msg || 'Fehler'));
+      }
+      else if (m.t === 'error') h.onConn(true, m.msg);
+    };
+    ws.onclose = () => {
+      clearTimeout(slow);
+      for (const w of waiting.values()) w.rej(new Error('Verbindung unterbrochen. Bitte nochmal versuchen.'));
+      waiting.clear();
+      h.onConn(false, 'Verbindung unterbrochen. Ich verbinde neu …');
+      retry = Math.min(retry + 1, 6); setTimeout(connect, 600 * retry);
+    };
+  }
+  return {
+    kind: 'ws',
+    shareUrl: code => location.origin + location.pathname + '#' + code,
+    start(handlers, myName){
+      h = handlers; name = myName || '';
+      connect();
+      setInterval(() => send({ t: 'ping' }), 60000);   // hält die Verbindung und den Gratis-Server wach
+      return Promise.resolve({ online: true });
+    },
+    hello(n){ name = n; send({ t: 'hello', pid, name }); },
+    open(code){ want = code; send({ t: 'open', code }); },
+    close(){ want = null; send({ t: 'close' }); send({ t: 'list' }); },
+    create(n, nm){
+      return new Promise((res, rej) => {
+        if (!send({ t: 'create', n, name: nm })) return rej(new Error('Keine Verbindung zum Server.'));
+        waiting.set('create', { res: code => { want = code; res(code); }, rej });
+      });
+    },
+    act(code, a, args){
+      return new Promise((res, rej) => {
+        const id = ++rid;
+        if (!send({ t: 'action', code, a, args, rid: id })) return rej(new Error('Keine Verbindung zum Server.'));
+        waiting.set(id, { res, rej });
+      });
+    }
+  };
+})();
+</script>
+<script>
+/* ===================== Canasta – Oberfläche ===================== */
+(() => {
+const C = Canasta;
+const app = document.getElementById('app');
+const toastsEl = document.getElementById('toasts');
+const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k, v){ try { localStorage.setItem(k, v); } catch(e){} } };
+const AV = ['#e8b86a', '#8fd3ff', '#f29ca3', '#a8e6b8'];
+const SUITS = { S:'♠', H:'♥', D:'♦', C:'♣', X:'★' };
+
+const S = {
+  mode: 'boot',            // boot | lobby | game | local
+  online: false, conn: true, connNote: '',
+  name: store.get('canasta.name') || '',
+  games: [], code: null, view: null, notFound: false,
+  local: null, cover: false,
+  pick: 4, sel: new Set(), staged: { groups: [], adds: [] },
+  busy: false, sheet: null, sound: store.get('canasta.sound') !== '0',
+  drag: null, press: null, renderQueued: false, lastFx: null
+};
+
+/* ---------- Ton & Haptik ---------- */
+let actx = null;
+function audio(){ if (!S.sound) return null; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; } catch(e){ return null; } }
+function snap(){
+  const a = audio(); if (!a) return;
+  const len = a.sampleRate * .05, b = a.createBuffer(1, len, a.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  f.type = 'bandpass'; f.frequency.value = 1800; g.gain.value = .5;
+  s.buffer = b; s.connect(f).connect(g).connect(a.destination); s.start();
+}
+function chime(big){
+  const a = audio(); if (!a) return;
+  const notes = big ? [659, 784, 988, 1319] : [784, 1047];
+  notes.forEach((fr, i) => {
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + i * .09;
+    o.type = 'sine'; o.frequency.value = fr;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.18, t + .02); g.gain.exponentialRampToValueAtTime(.001, t + .5);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + .55);
+  });
+}
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch(e){} };
+
+/* ---------- Toasts & Effekte ---------- */
+function toast(text, kind, ms){
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind || ''); el.textContent = text; el.setAttribute('role', kind === 'err' ? 'alert' : 'status');
+  toastsEl.appendChild(el);
+  while (toastsEl.children.length > 3) toastsEl.firstChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, ms || 2600);
+}
+function confetti(x, y){
+  if (reduced) return;
+  const cv = document.getElementById('fx'); const ctx = cv.getContext('2d');
+  cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; ctx.scale(devicePixelRatio, devicePixelRatio);
+  const cols = ['#e8b86a', '#f7f4ee', '#e0474c', '#b9853a', '#8fd3ff'];
+  const ps = Array.from({ length: 70 }, () => ({ x, y, vx: (Math.random() - .5) * 9, vy: -Math.random() * 9 - 3, r: Math.random() * 6 + 3, c: cols[Math.floor(Math.random() * cols.length)], a: Math.random() * 6, va: (Math.random() - .5) * .4 }));
+  const t0 = performance.now();
+  (function frame(t){
+    const k = (t - t0) / 1300;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of ps){ p.vy += .32; p.x += p.vx; p.y += p.vy; p.a += p.va; ctx.save(); ctx.globalAlpha = Math.max(0, 1 - k); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); ctx.restore(); }
+    if (k < 1) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  })(t0);
+}
+
+/* ---------- Hilfen ---------- */
+const view = () => S.mode === 'local' ? localView() : S.view;
+const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+const sideColor = (v, s) => v.n === 4 ? (s === 0 ? AV[0] : AV[1]) : AV[s];
+function sideLabel(v, s){
+  if (v.n === 4){
+    const seats = C.seatsOf(v, s).map(i => v.players[i].name);
+    return seats.join(' & ');
+  }
+  return v.players[s].name;
+}
+function sideShort(v, s){ if (v.n === 4) return 'Team ' + (s === 0 ? 'A' : 'B'); return v.players[s].name; }
+function avatar(v, seat, extra){
+  const p = v.players[seat];
+  return '<div class="av ' + (p && p.online === false ? 'off' : '') + '" data-av="' + seat + '" style="background:' + AV[seat % 4] + '" aria-hidden="true">' + esc(initials(p ? p.name : '')) + '</div>';
+}
+function cardHTML(c, o){
+  o = o || {};
+  if (c === '?') return '<div class="card back ' + (o.mini ? 'mini' : '') + '" aria-hidden="true"></div>';
+  const r = C.rank(c), s = C.suit(c), red = s === 'H' || s === 'D', joker = r === 'X';
+  const cls = ['card', red ? 'red' : '', joker ? 'joker' : '', C.isWild(c) ? 'wild' : '', o.mini ? 'mini' : ''].join(' ');
+  const k = o.key === false ? '' : ' data-k="' + c + '"';
+  const extra = o.attrs || '';
+  return '<div class="' + cls + '"' + k + extra + ' aria-label="' + esc(C.label(c)) + '">' +
+    '<span class="rk">' + (joker ? 'Joker' : r) + '</span>' + (joker ? '' : '<span class="st">' + SUITS[s] + '</span>') +
+    '<span class="pip">' + SUITS[s] + '</span></div>';
+}
+const icon = {
+  menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  sound: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 6M21 9l-5 6"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+};
+
+/* ---------- Lokales Spiel (ein Gerät) ---------- */
+function localView(){
+  const g = S.local; if (!g) return null;
+  const seat = g.hand ? g.hand.turn : 0;
+  return C.view(g, g.playerIds[seat]);
+}
+function localAct(a, args){
+  const g = clone(S.local);
+  const seat = g.hand ? g.hand.turn : 0;
+  let pid = g.playerIds[seat];
+  if (a === 'answerOut') pid = g.playerIds[C.partnerOf(g, seat)];
+  if (a === 'start' || a === 'shuffleTeams') pid = g.hostId;
+  C.apply(g, pid, a, args);
+  const prevTurn = S.local.hand && S.local.hand.turn;
+  S.local = g;
+  if (g.hand && g.status === 'playing' && g.hand.turn !== prevTurn) S.cover = true;
+  if (a === 'nexthand' || a === 'rematch') S.cover = true;
+}
+
+/* ---------- Aktionen ---------- */
+async function act(a, args, okText){
+  if (S.busy) return false;
+  S.busy = true; render();
+  try {
+    if (S.mode === 'local'){ const prev = localView(); localAct(a, args); S.busy = false; afterAction(); onNewView(prev, localView()); }
+    else { await NET.act(S.code, a, args || []); S.busy = false; afterAction(); }
+    if (okText) toast(okText);
+    return true;
+  } catch(e){
+    S.busy = false;
+    toast(e.message || String(e), 'err', 4200); buzz([30, 40, 30]);
+    render(); return false;
+  }
+}
+function afterAction(){ S.sel.clear(); S.staged = { groups: [], adds: [] }; render(); }
+
+/* ---------- Neue Spielstände ---------- */
+function onNewView(prev, v){
+  const me = v ? v.youSeat : -1;
+  if (v && v.hand){
+    const H = v.hand;
+    // Auswahl bereinigen
+    const hand = me >= 0 ? (H.hands[me] || []) : [];
+    for (const c of [...S.sel]) if (!hand.includes(c)) S.sel.delete(c);
+    S.staged.groups = S.staged.groups.map(g => g.filter(c => hand.includes(c))).filter(g => g.length);
+    S.staged.adds = S.staged.adds.map(x => ({ meldId: x.meldId, cards: x.cards.filter(c => hand.includes(c)) })).filter(x => x.cards.length);
+    if (prev && prev.hand && v.status === 'playing'){
+      // Zugwechsel
+      if (prev.hand.turn !== H.turn && H.turn === me && S.mode !== 'local'){ toast('Du bist dran', 'gold'); buzz(35); chime(false); }
+      // neue Canastas
+      for (let s = 0; s < C.nSides(v); s++){
+        const before = (prev.hand.melds[s] || []).filter(C.isCanasta).map(m => m.id);
+        const fresh = (H.melds[s] || []).filter(m => C.isCanasta(m) && !before.includes(m.id));
+        for (const m of fresh){
+          const kind = m.rank === 'W' ? 'Wildkarten-Canasta' : m.cards.some(C.isWild) ? 'gemischter Canasta' : 'reiner Canasta';
+          const pts = (m.rank === 'W' ? 1000 : m.cards.some(C.isWild) ? 300 : 400) + (m.concealed ? 100 : 0);
+          toast(kind[0].toUpperCase() + kind.slice(1) + ' für ' + sideShort(v, s) + ': +' + pts, 'gold', 3200);
+          S.lastFx = { meld: m.id }; chime(true); buzz([20, 30, 60]);
+        }
+      }
+      // Partner fragt
+      const r = H.outReq;
+      if (r && r.answer === null && me === C.partnerOf(v, r.seat) && !(prev.hand.outReq && prev.hand.outReq.answer === null)){ toast(v.players[r.seat].name + ' fragt, ob er/sie ausgehen darf', 'gold', 3600); buzz([40, 60, 40]); chime(false); }
+    }
+  }
+  if (prev && prev.status === 'playing' && v && (v.status === 'handover' || v.status === 'finished')){ chime(true); }
+  document.title = (v && v.hand && v.status === 'playing' && v.hand.turn === me && S.mode !== 'local' ? '● Du bist dran · ' : '') + 'Canasta';
+  render({ prev });
+}
+
+/* ---------- FLIP-Animationen ---------- */
+function capture(){
+  const m = new Map();
+  app.querySelectorAll('[data-k],[data-av],#stock,#discard').forEach(el => {
+    const k = el.dataset.k ? 'k:' + el.dataset.k : el.dataset.av != null ? 'av:' + el.dataset.av : 'id:' + el.id;
+    if (!m.has(k)) m.set(k, el.getBoundingClientRect());
+  });
+  return m;
+}
+function flip(prevRects, prev, v){
+  if (reduced || !prevRects || !prevRects.size) return;
+  const tookPile = prev && prev.hand && v && v.hand && prev.hand.discard.length > 1 && v.hand.discard.length === 0;
+  const actor = prev && prev.hand ? prev.hand.turn : -1;
+  app.querySelectorAll('[data-k]').forEach(el => {
+    let r0 = prevRects.get('k:' + el.dataset.k);
+    const r1 = el.getBoundingClientRect();
+    if (!r1.width) return;
+    if (!r0){
+      if (!prev || !prev.hand || !v || !v.hand) return;
+      const inHand = !!el.closest('.hand');
+      if (inHand) r0 = prevRects.get(tookPile ? 'id:discard' : 'id:stock');
+      else if (actor >= 0 && actor !== v.youSeat) r0 = prevRects.get('av:' + actor);
+      if (!r0) return;
+    }
+    const dx = r0.left - r1.left, dy = r0.top - r1.top, sc = r0.width / r1.width;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    el.animate([{ transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')', transformOrigin: '0 0' }, { transform: 'none', transformOrigin: '0 0' }],
+      { duration: 460, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
+}
+
+/* ---------- Render ---------- */
+function render(opts){
+  if (S.drag){ S.renderQueued = true; return; }
+  opts = opts || {};
+  const rects = capture();
+  const focusId = document.activeElement && document.activeElement.id;
+  const vals = {}; app.querySelectorAll('input[id]').forEach(i => { vals[i.id] = i.value; });
+  let html;
+  const v = view();
+  if (S.mode === 'boot') html = '<div class="cover"><p class="muted">Canasta wird geladen …</p></div>';
+  else if (S.mode === 'lobby') html = lobbyHTML();
+  else if (!v) html = '<div class="cover"><div class="stack"><p class="muted">' + (S.notFound ? 'Es gibt keinen Tisch mit dem Code ' + esc(S.code) + '.' : 'Tisch ' + esc(S.code || '') + ' wird geladen …') + '</p><div><button class="btn" data-act="lobby">Zur Startseite</button></div></div></div>';
+  else if (v.status === 'lobby') html = waitHTML(v);
+  else if (S.mode === 'local' && S.cover && v.status === 'playing') html = coverHTML(v);
+  else html = tableHTML(v);
+  html += sheetHTML(v);
+  app.innerHTML = html;
+  app.querySelectorAll('input[id]').forEach(i => { if (vals[i.id] != null && !i.readOnly) i.value = vals[i.id]; });
+  if (focusId){ const el = document.getElementById(focusId); if (el) el.focus({ preventScroll: true }); }
+  flip(rects, opts.prev, v);
+  postRender(v);
+}
+function postRender(v){
+  const qr = document.getElementById('qr');
+  if (qr && window.QRCode && v){ try { new QRCode(qr, { text: NET.shareUrl(v.code), width: 132, height: 132, colorDark: '#121629', colorLight: '#ffffff' }); } catch(e){ qr.remove(); } }
+  else if (qr) qr.parentElement.remove();
+  if (S.lastFx && S.lastFx.meld){
+    const el = app.querySelector('[data-k="meld-' + S.lastFx.meld + '"]');
+    if (el){ el.classList.add('new'); const r = el.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top + r.height / 2); }
+    S.lastFx = null;
+  }
+  const hero = app.querySelector('.hero-fan');
+  if (hero && !hero.dataset.done){
+    hero.dataset.done = '1';
+    const cs = hero.querySelectorAll('.card');
+    requestAnimationFrame(() => requestAnimationFrame(() => cs.forEach((c, i) => { c.style.transform = 'translateX(-50%) rotate(' + ((i - 2) * 11) + 'deg) translateY(' + (Math.abs(i - 2) * 6) + 'px)'; })));
+  }
+}
+
+/* ---------- Startseite ---------- */
+function lobbyHTML(){
+  const mine = S.games.filter(g => g.you && g.status !== 'finished');
+  const open = S.games.filter(g => g.status === 'lobby' && !g.you && g.players.length < g.n);
+  const gl = (list, empty) => list.length ? '<div class="gamelist">' + list.map(g =>
+    '<button data-open="' + esc(g.code) + '"><span><span class="gcode">' + esc(g.code) + '</span> <span class="muted">· ' + esc(g.players.map(p => p.name).join(', ')) + '</span></span><span class="pill">' + statusName(g) + '</span></button>').join('') + '</div>'
+    : '<p class="muted" style="margin:0">' + empty + '</p>';
+  const fan = ['AH0', 'KS0', 'XX0', 'QD0', '2C0'].map(c => cardHTML(c, { key: false, attrs: ' style="transform:translateX(-50%)"' })).join('');
+  return `<main class="lobby">
+    <section class="hero">
+      <div>
+        <h1>Canasta</h1>
+        <p>Das Kartenspiel mit zwei Decks und vier Jokern. Zu zweit, zu dritt oder zu viert in Teams, jeder an seinem eigenen Gerät.</p>
+      </div>
+      <div class="hero-fan" aria-hidden="true">${fan}</div>
+    </section>
+    ${!S.conn && S.connNote ? '<div class="note">' + esc(S.connNote) + '</div>' : ''}
+    ${S.online ? `
+    <div class="lobby-grid">
+      <section class="panel stack">
+        <h2>Neuen Tisch eröffnen</h2>
+        <div><label class="lbl" for="nick">Dein Name</label><input class="field" id="nick" maxlength="18" value="${esc(S.name)}" placeholder="z. B. Hilde" autocomplete="nickname"></div>
+        <div><span class="lbl">Wie viele spielen mit?</span>
+          <div class="seg" role="group" aria-label="Spieleranzahl">${[2, 3, 4].map(n => `<button data-pick="${n}" aria-pressed="${S.pick === n}">${n === 4 ? '4 · Teams' : n}</button>`).join('')}</div></div>
+        <button class="btn primary" data-act="create" ${S.busy ? 'disabled' : ''}>Tisch eröffnen</button>
+      </section>
+      <section class="panel stack">
+        <h2>Mit Code beitreten</h2>
+        <p class="muted" style="margin:0">Den Code bekommst du von der Person, die den Tisch eröffnet hat.</p>
+        <div class="codebox" role="group" aria-label="Spielcode">${[0, 1, 2, 3].map(i => `<input id="c${i}" maxlength="1" inputmode="text" autocomplete="off" aria-label="Zeichen ${i + 1}">`).join('')}</div>
+        <button class="btn" data-act="joincode">Beitreten</button>
+      </section>
+    </div>
+    <div class="lobby-grid">
+      <section class="panel stack"><h2>Deine Tische</h2>${gl(mine, 'Du sitzt gerade an keinem Tisch.')}</section>
+      <section class="panel stack"><h2>Offene Tische</h2>${gl(open, 'Gerade wartet kein Tisch auf Mitspieler.')}</section>
+    </div>` : ''}
+    <details class="panel local" ${S.online ? '' : 'open'}>
+      <summary>An einem Gerät spielen</summary>
+      <div class="stack" style="margin-top:14px">
+        <p class="muted" style="margin:0">Ihr gebt das Gerät reihum weiter. Vor jedem Zug werden die Karten verdeckt.</p>
+        <div class="row">${[0, 1, 2, 3].map(i => `<input class="field" style="flex:1;min-width:130px" id="ln${i}" maxlength="18" placeholder="Spieler ${i + 1}" aria-label="Name Spieler ${i + 1}">`).join('')}</div>
+        <div class="row">${[2, 3, 4].map(n => `<button class="btn ghost" data-local="${n}">Zu ${n === 2 ? 'zweit' : n === 3 ? 'dritt' : 'viert'} starten</button>`).join('')}</div>
+      </div>
+    </details>
+    <div class="row"><button class="btn ghost small" data-sheet="rules">Spielregeln</button></div>
+  </main>`;
+}
+function statusName(g){ return { lobby: 'wartet · ' + g.players.length + '/' + g.n, playing: 'Runde ' + g.handNo, handover: 'Pause', finished: 'beendet' }[g.status] || g.status; }
+
+/* ---------- Warteraum ---------- */
+function waitHTML(v){
+  const seated = v.youSeat >= 0, host = v.youHost, full = v.players.length >= v.n;
+  const pos = { 2: [[50, 10], [50, 90]], 3: [[50, 9], [88, 72], [12, 72]], 4: [[50, 9], [91, 50], [50, 91], [9, 50]] }[v.n];
+  const seats = pos.map(([x, y], i) => {
+    const p = v.players[i];
+    const team = v.n === 4 ? '<span class="pill" style="color:' + (i % 2 ? AV[1] : AV[0]) + '">Team ' + (i % 2 ? 'B' : 'A') + '</span>' : '';
+    return '<div class="seat ' + (p ? '' : 'free') + '" style="left:' + x + '%;top:' + y + '%">' + (p ? avatar(v, i) : '<div class="av">+</div>') +
+      '<b style="font-size:.95rem">' + (p ? esc(p.name) : '<span class="muted">frei</span>') + '</b>' + (p && p.host ? '<span class="pill gold">Gastgeber</span>' : team) + '</div>';
+  }).join('');
+  const link = NET.shareUrl(v.code);
+  return `<main class="wait">
+    <div class="topbar"><button class="btn ghost small" data-act="lobby">Zurück</button><span class="spacer"></span><button class="btn ghost small" data-sheet="rules">Regeln</button></div>
+    <div class="wait-grid">
+      <div class="roundtable"><div class="felt"><div><div class="muted" style="font-size:.85rem">Tisch</div><b>${esc(v.code)}</b></div></div>${seats}</div>
+      <section class="panel stack">
+        <h2>${full ? 'Alle sind da' : 'Mitspieler einladen'}</h2>
+        <p class="muted" style="margin:0">${full ? (host ? 'Du kannst das Spiel starten.' : 'Gleich geht es los. Der Gastgeber startet das Spiel.') : 'Schick den Link oder lass den Code scannen. Jeder spielt an seinem eigenen Gerät.'}</p>
+        <div class="row" style="align-items:flex-start"><div class="qr" id="qr" aria-label="QR-Code zum Beitreten"></div></div>
+        <div class="row"><input class="field" id="share" readonly value="${esc(link)}" style="flex:1;min-width:180px;font-size:.9rem"><button class="btn small" data-act="copy">Link kopieren</button></div>
+        ${v.n === 4 ? '<p class="muted" style="margin:0;font-size:.9rem">Partner sitzen sich gegenüber: Plätze 1 & 3 gegen 2 & 4.</p>' : ''}
+        <div class="row">
+          ${!seated ? `<input class="field" id="nick" maxlength="18" value="${esc(S.name)}" placeholder="Dein Name" style="flex:1;min-width:140px" aria-label="Dein Name"><button class="btn primary" data-act="join" ${S.busy || full ? 'disabled' : ''}>Platz nehmen</button>` : ''}
+          ${host && v.n === 4 && full ? '<button class="btn ghost" data-act="shuffle">Teams mischen</button>' : ''}
+          ${host ? `<button class="btn primary" data-act="start" ${!full || S.busy ? 'disabled' : ''}>Spiel starten</button>` : ''}
+          ${seated && !host ? '<button class="btn ghost" data-act="leave">Platz freigeben</button>' : ''}
+        </div>
+      </section>
+    </div>
+  </main>`;
+}
+
+/* ---------- Abdeckung (ein Gerät) ---------- */
+function coverHTML(v){
+  const t = v.hand.turn;
+  return `<div class="cover"><div>
+    ${avatar(v, t)}
+    <h2 style="font-size:2rem">${esc(v.players[t].name)} ist dran</h2>
+    <p class="muted">Gib das Gerät weiter. Alle anderen schauen kurz weg.</p>
+    <button class="btn primary" data-act="reveal" style="margin-top:10px">Karten zeigen</button>
+  </div></div>`;
+}
+
+/* ---------- Spieltisch ---------- */
+function ctx(v){
+  const H = v.hand, me = v.youSeat;
+  const mySide = me >= 0 ? C.sideOf(v, me) : -1;
+  const myTurn = me >= 0 && v.status === 'playing' && H.turn === me;
+  const phase = myTurn ? H.phase : null;
+  const melded = mySide >= 0 && H.melds[mySide].length > 0;
+  const stagedIds = new Set(S.staged.groups.flat().concat(S.staged.adds.flatMap(a => a.cards)));
+  const hand = me >= 0 ? C.sortHand(H.hands[me] || []) : [];
+  const top = H.discard[H.discard.length - 1];
+  return { H, me, mySide, myTurn, phase, melded, stagedIds, hand, top };
+}
+
+function tableHTML(v){
+  const x = ctx(v), { H, me, mySide, myTurn } = x;
+  const local = S.mode === 'local';
+  const sides = [...Array(C.nSides(v)).keys()];
+  // Kopfzeile
+  const scores = sides.map(s => `<div class="scorepill ${s === mySide ? 'mine' : ''}" title="${esc(sideLabel(v, s))}"><span class="dot" style="background:${sideColor(v, s)}"></span><span class="nm">${esc(sideShort(v, s))}</span>${v.scores[s]}</div>`).join('');
+  const top = `<header class="topbar">
+    <span class="brand">Canasta</span>
+    ${local ? '' : '<span class="pill">' + esc(v.code) + '</span>'}
+    <span class="pill">Runde ${v.handNo}</span>
+    <span class="spacer"></span>
+    <button class="scores" data-sheet="score" aria-label="Punktestand anzeigen" style="padding:0">${scores}</button>
+    <button class="icon-btn" data-act="sound" aria-label="${S.sound ? 'Ton aus' : 'Ton an'}">${S.sound ? icon.sound : icon.mute}</button>
+    <button class="icon-btn" data-sheet="menu" aria-label="Menü">${icon.menu}</button>
+  </header>`;
+  const connBar = !local && !S.conn ? '<div class="note" style="margin-bottom:8px">' + esc(S.connNote || 'Verbindung unterbrochen. Ich verbinde neu …') + '</div>' : '';
+
+  // Gegner
+  const order = [...Array(v.n).keys()].map(i => (Math.max(me, 0) + i) % v.n).filter(i => i !== me);
+  const opps = order.map(i => {
+    const cnt = (H.hands[i] || []).length;
+    const partner = v.n === 4 && me >= 0 && i === C.partnerOf(v, me);
+    const asking = H.outReq && H.outReq.seat === i && H.outReq.answer === null;
+    return `<div class="opp ${H.turn === i && v.status === 'playing' ? 'active' : ''}">
+      ${avatar(v, i)}
+      <div><div class="nm">${esc(v.players[i].name)}</div><div class="sub">${partner ? 'Partner · ' : ''}${cnt} Karten</div></div>
+      <div class="minibacks" aria-hidden="true">${Array.from({ length: Math.min(cnt, 6) }, () => '<div class="card back"></div>').join('')}</div>
+      ${asking ? '<div class="bubble">Darf ich ausgehen?</div>' : ''}
+    </div>`;
+  }).join('');
+
+  // Mitte: Talon & Ablage
+  const canDraw = x.phase === 'draw' && H.stock.length > 0;
+  const canTake = x.phase === 'draw' && x.top && !C.isWild(x.top) && !C.isBlack3(x.top);
+  const pileTop = H.discard.slice(-3);
+  const center = `<div class="center">
+    <button class="pile ${canDraw ? 'can' : ''}" id="stock" data-act="draw" ${canDraw ? '' : 'tabindex="-1"'} aria-label="Talon, ${H.stock.length} Karten${canDraw ? ', tippen zum Ziehen' : ''}">
+      <div class="stackwrap">${H.stock.length ? '<div class="card back" style="transform:translate(3px,3px)"></div><div class="card back"></div>' : '<div class="card empty"></div>'}</div>
+      <span class="count">Talon · ${H.stock.length}</span>
+    </button>
+    <button class="pile ${canTake ? 'can' : ''} ${H.frozen ? 'frozen' : ''}" id="discard" data-drop="discard" data-act="pile" aria-label="Ablagestapel, ${H.discard.length} Karten${H.frozen ? ', eingefroren' : ''}">
+      <div class="stackwrap">${pileTop.length ? pileTop.map((c, i) => '<div style="position:absolute;inset:0;transform:rotate(' + ((i - pileTop.length + 1) * 7) + 'deg)">' + cardHTML(c, { key: i === pileTop.length - 1 }) + '</div>').join('') : '<div class="card empty"></div>'}</div>
+      <span class="count">Ablage · ${H.discard.length}${H.frozen ? ' · <span style="color:var(--ice)">eingefroren</span>' : ''}${x.top && C.isBlack3(x.top) ? ' · gesperrt' : ''}</span>
+    </button>
+  </div>`;
+  const last = (v.log || [])[v.log.length - 1] || '';
+  const ticker = '<div class="ticker" aria-live="polite">' + esc(last) + '</div>';
+
+  // Auslagen
+  const sideOrder = sides.filter(s => s !== mySide).concat(mySide >= 0 ? [mySide] : []);
+  const sidesHTML = sideOrder.map(s => sideHTML(v, x, s)).join('');
+
+  return `<div class="game">${top}${connBar}<div class="opps">${opps}</div>${center}${ticker}<div class="sides">${sidesHTML}</div>${dockHTML(v, x)}</div>${resultHTML(v)}`;
+}
+
+function sideHTML(v, x, s){
+  const { H } = x;
+  const mine = s === x.mySide;
+  const melds = H.melds[s].slice().sort((a, b) => (C.isCanasta(b) - C.isCanasta(a)) || (b.cards.length - a.cards.length));
+  const interactive = mine && x.myTurn;
+  const sel = [...S.sel];
+  const baskets = melds.map(m => {
+    const staged = S.staged.adds.filter(a => a.meldId === m.id).flatMap(a => a.cards);
+    let ok = false;
+    if (interactive && sel.length){ try { C.checkAdd({ rank: m.rank, cards: m.cards.concat(staged) }, sel); ok = true; } catch(e){} }
+    const attrs = interactive ? ' data-drop="meld:' + m.id + '"' + (ok ? ' role="button" tabindex="0"' : '') : '';
+    if (C.isCanasta(m) && !staged.length){
+      const type = m.rank === 'W' ? 'wildc' : m.cards.some(C.isWild) ? 'mixed' : 'pure';
+      const pts = (type === 'wildc' ? 1000 : type === 'mixed' ? 300 : 400) + (m.concealed ? 100 : 0);
+      const lbl = m.rank === 'W' ? '★' : C.rankName(m.rank);
+      return `<div class="basket canasta ${type} ${ok ? 'drop-ok tap' : ''}" data-k="meld-${m.id}"${attrs} title="${type === 'pure' ? 'Reiner' : type === 'mixed' ? 'Gemischter' : 'Wildkarten-'} Canasta, ${m.cards.length} Karten${m.concealed ? ', verdeckt' : ''}" aria-label="Canasta ${esc(lbl)}, ${m.cards.length} Karten, ${pts} Punkte">
+        <div class="weave"></div><div class="crest">${esc(lbl)}</div><div class="cmeta">${m.cards.length} · +${pts}</div></div>`;
+    }
+    const shown = C.sortHand(m.cards);
+    return `<div class="basket ${ok ? 'drop-ok tap' : ''}" data-k="meld-${m.id}"${attrs}>
+      <div class="bh"><span>${esc(C.rankName(m.rank))}</span><span>${m.cards.length}${staged.length ? ' +' + staged.length : ''}/7</span></div>
+      <div class="fan">${shown.map(c => cardHTML(c, { mini: true })).join('')}${staged.map(c => cardHTML(c, { mini: true })).join('')}</div></div>`;
+  }).join('');
+  let ghosts = '', newzone = '';
+  if (mine && x.myTurn){
+    ghosts = S.staged.groups.map((g, i) => `<div class="basket ghost"><div class="bh"><span>Entwurf ${i + 1}</span><span>${C.sum(g)} P.</span></div><div class="fan">${C.sortHand(g).map(c => cardHTML(c, { mini: true })).join('')}</div></div>`).join('');
+    let ok = false; if (sel.length >= 3){ try { C.checkGroup(sel); ok = true; } catch(e){} }
+    if (x.phase === 'draw' && sel.length >= 2 && x.top){ try { C.checkGroup(sel.concat(x.top)); ok = true; } catch(e){} }
+    newzone = `<div class="newzone ${ok ? 'drop-ok' : ''}" data-drop="new" role="button" tabindex="0">+ Neue Kombination</div>`;
+  }
+  const reds = H.red[s];
+  const empty = !melds.length && !ghosts ? '<span class="empty-side">' + (mine ? 'Noch nichts ausgelegt. Erstes Auslegen: mindestens ' + C.minMeld(v.scores[s]) + ' Punkte.' : 'Noch nichts ausgelegt.') + '</span>' : '';
+  return `<section class="side ${mine ? 'mine' : ''}">
+    <div class="side-h"><span class="scorepill" style="padding:2px 10px 2px 3px"><span class="dot" style="background:${sideColor(v, s)}"></span>${mine ? (v.n === 4 ? 'Euer Team' : 'Du') : esc(sideLabel(v, s))}</span>
+      ${C.canastaCount(v, s) ? '<span class="pill gold">' + C.canastaCount(v, s) + ' Canasta</span>' : ''}
+      ${reds.length ? '<span class="reds" title="Rote Dreien">' + reds.map(c => cardHTML(c, { mini: true })).join('') + '</span>' : ''}
+    </div>
+    <div class="baskets">${baskets}${ghosts}${empty}${newzone}</div>
+  </section>`;
+}
+
+function dockHTML(v, x){
+  const { H, me, myTurn, phase, hand, stagedIds } = x;
+  if (me < 0 || v.status !== 'playing') return v.status === 'playing' ? '<div class="watch">Du schaust an diesem Tisch zu.</div>' : '';
+  const shown = hand.filter(c => !stagedIds.has(c));
+  const sel = [...S.sel];
+  // Auswahl-Info
+  let chip = '';
+  if (sel.length){
+    let txt, ok = false;
+    try { const g = C.checkGroup(sel); ok = true; txt = sel.length + '× ' + C.rankName(g.rank) + ' · ' + C.sum(sel) + ' P.'; }
+    catch(e){ txt = sel.length + (sel.length === 1 ? ' Karte' : ' Karten') + ' · ' + C.sum(sel) + ' P.'; }
+    chip = '<span class="chip-sel ' + (ok ? 'ok' : '') + '">' + esc(txt) + '</span>';
+  }
+  // Hinweis
+  let hint = '';
+  if (!myTurn){
+    const r = H.outReq;
+    if (r && r.answer === null && me === C.partnerOf(v, r.seat)) hint = '';
+    else hint = '<b>' + esc(v.players[H.turn].name) + '</b> ist dran. Du kannst schon Karten antippen und planen.';
+  } else if (phase === 'draw') hint = 'Tippe auf den <b>Talon</b>, um zu ziehen, oder zieh passende Karten auf den <b>Ablagestapel</b>, um ihn aufzunehmen.';
+  else hint = x.melded ? 'Zieh Karten auf eure Kombinationen oder auf „Neue Kombination“. Zum Schluss eine Karte auf den <b>Ablagestapel</b> ziehen.' : 'Stell dein erstes Auslegen zusammen (mind. ' + C.minMeld(v.scores[x.mySide]) + ' P.) oder wirf eine Karte auf den <b>Ablagestapel</b> ab.';
+  // Buttons
+  const hasStage = S.staged.groups.length || S.staged.adds.length;
+  const btns = [];
+  const r = H.outReq;
+  if (r && r.answer === null && (me === C.partnerOf(v, r.seat) || (S.mode === 'local' && myTurn))){
+    btns.push('<span class="chip-sel">' + esc(v.players[r.seat].name) + ' fragt' + (S.mode === 'local' ? ' ' + esc(v.players[C.partnerOf(v, r.seat)].name) : '') + ': Darf ich ausgehen?</span>');
+    btns.push('<button class="btn primary small" data-act="outyes">Ja</button><button class="btn small" data-act="outno">Nein</button>');
+  }
+  if (myTurn && hasStage){
+    if (phase === 'play'){
+      const pts = S.staged.groups.reduce((s, g) => s + C.sum(g), 0), need = C.minMeld(v.scores[x.mySide]);
+      const meter = x.melded ? '' : '<span class="meter"><span>' + pts + ' / ' + need + '</span><span class="bar"><i style="width:' + Math.min(100, pts / need * 100) + '%"></i></span></span>';
+      btns.push('<button class="btn primary" data-act="commit" ' + (S.busy ? 'disabled' : '') + '>Auslegen ' + meter + '</button>');
+    } else btns.push('<button class="btn primary" data-act="pile" ' + (S.busy ? 'disabled' : '') + '>Stapel aufnehmen</button>');
+  }
+  if (myTurn && (hasStage || sel.length)) btns.push('<button class="btn ghost small" data-act="reset">Zurücksetzen</button>');
+  if (myTurn && phase === 'play' && sel.length === 1 && !hasStage) btns.push('<button class="btn small" data-act="discard">Abwerfen</button>');
+  if (myTurn && v.n === 4){
+    if (!r) btns.push('<button class="btn ghost small" data-act="askout">Partner fragen: Darf ich ausgehen?</button>');
+    else if (r.seat === me && r.answer !== null) btns.push('<span class="chip-sel ' + (r.answer === 'yes' ? 'ok' : 'bad') + '">' + esc(v.players[C.partnerOf(v, me)].name) + ': ' + (r.answer === 'yes' ? 'Ja, geh raus!' : 'Nein, noch nicht') + '</span>');
+    else if (r.seat === me) btns.push('<span class="chip-sel">Warte auf ' + esc(v.players[C.partnerOf(v, me)].name) + ' …</span>');
+  }
+  if (myTurn && phase === 'draw' && !H.stock.length) btns.push('<button class="btn" data-act="stockout">Talon leer: Runde beenden</button>');
+
+  // Fächer
+  const cw = innerWidth <= 640 ? 58 : 76;
+  const W = Math.min(innerWidth, 1200) - 28 - cw * .5;   // Platz für die Drehung am Rand
+  const rows = shown.length > 18 ? [shown.slice(0, Math.ceil(shown.length / 2)), shown.slice(Math.ceil(shown.length / 2))] : [shown];
+  const canAdd = new Set();
+  if (myTurn && phase === 'play' && x.melded){
+    for (const c of shown) for (const m of H.melds[x.mySide]){ if (C.isWild(c)) continue; try { C.checkAdd(m, [c]); canAdd.add(c); break; } catch(e){} }
+  }
+  const fan = rows.map(row => {
+    const N = row.length;
+    let ov = N > 1 ? (W - N * cw) / (N - 1) : 0;
+    ov = Math.max(Math.min(ov, -cw * .18), -cw * .7);
+    const step = Math.min(3.2, 34 / Math.max(N, 1));
+    return '<div class="handrow">' + row.map((c, i) => {
+      const off = i - (N - 1) / 2;
+      const rot = (off * step).toFixed(2), y = (off * off * .55).toFixed(1);
+      return '<div class="slot ' + (S.sel.has(c) ? 'up' : '') + (canAdd.has(c) && !S.sel.has(c) ? ' hint-add' : '') + '" style="--r:' + rot + 'deg;--y:' + y + 'px;margin-left:' + (i ? ov.toFixed(1) : 0) + 'px;z-index:' + (i + 1) + '">' +
+        cardHTML(c, { attrs: ' data-card="' + c + '" tabindex="0" role="button" aria-pressed="' + S.sel.has(c) + '"' }) + '</div>';
+    }).join('') + '</div>';
+  }).join('');
+
+  return `<div class="dock">
+    <div class="actionbar">${hint ? '<div class="hint">' + hint + '</div>' : ''}${chip}${btns.join('')}</div>
+    <div class="hand" aria-label="Deine Hand, ${hand.length} Karten">${fan}</div>
+  </div>`;
+}
+
+/* ---------- Rundenergebnis ---------- */
+function resultHTML(v){
+  if (!v || !(v.status === 'handover' || v.status === 'finished') || !v.lastResult) return '';
+  const r = v.lastResult, me = v.youSeat, mySide = me >= 0 ? C.sideOf(v, me) : -1;
+  const max = Math.max(...v.scores);
+  const fin = v.status === 'finished';
+  let title = 'Runde ' + r.handNo + ' ist vorbei';
+  if (fin){
+    const w = v.scores.map((s, i) => s === max ? i : -1).filter(i => i >= 0);
+    title = w.includes(mySide) && S.mode !== 'local' ? (v.n === 4 ? 'Ihr habt gewonnen!' : 'Du hast gewonnen!') : w.map(i => sideShort(v, i)).join(' & ') + (w.length > 1 || v.n === 4 ? ' gewinnen!' : ' gewinnt!');
+  }
+  const out = r.outSeat >= 0 ? esc(v.players[r.outSeat].name) + ' ist ' + (r.concealed ? 'verdeckt ' : '') + 'ausgegangen.' : 'Der Talon war leer. Niemand ist ausgegangen.';
+  const cards = r.rows.slice().sort((a, b) => b.score - a.score).map(x => {
+    const parts = [x.meldPts + ' Karten'];
+    if (x.bonus) parts.push('+' + x.bonus + ' Canasta' + ([x.nat ? x.nat + '× rein' : '', x.mix ? x.mix + '× gemischt' : '', x.wild ? x.wild + '× Wild' : '', x.conc ? x.conc + '× verdeckt' : ''].filter(Boolean).length ? ' (' + [x.nat ? x.nat + '× rein' : '', x.mix ? x.mix + '× gemischt' : '', x.wild ? x.wild + '× Wild' : '', x.conc ? x.conc + '× verdeckt' : ''].filter(Boolean).join(', ') + ')' : ''));
+    if (x.red) parts.push((x.red > 0 ? '+' : '') + x.red + ' rote Dreien');
+    if (x.out) parts.push('+' + x.out + ' Ausgehen');
+    if (x.handPts) parts.push('−' + x.handPts + ' Hand');
+    return `<div class="rcard ${fin && x.score === max ? 'win' : ''}">
+      <span class="dot" style="width:28px;height:28px;border-radius:50%;background:${sideColor(v, x.side)}"></span>
+      <div><b>${esc(sideLabel(v, x.side))}</b><div class="detail">${parts.join(' · ')}</div></div>
+      <div><div class="total" data-count="${x.total}">${x.total > 0 ? '+' : ''}${x.total}</div><div class="detail" style="text-align:right">gesamt ${x.score}</div></div>
+    </div>`;
+  }).join('');
+  const can = v.youSeat >= 0 || S.mode === 'local';
+  return `<div class="scrim mid"><div class="sheet center" role="dialog" aria-modal="true" aria-labelledby="res-h">
+    <div class="result-hero"><h2 id="res-h">${title}</h2><p class="muted" style="margin:6px 0 0">${out}</p></div>
+    <div class="result-cards">${cards}</div>
+    <div class="row" style="justify-content:center">
+      ${!fin && can ? '<button class="btn primary" data-act="nexthand" ' + (S.busy ? 'disabled' : '') + '>Nächste Runde geben</button>' : ''}
+      ${fin && can ? '<button class="btn primary" data-act="rematch" ' + (S.busy ? 'disabled' : '') + '>Neue Partie</button>' : ''}
+      <button class="btn ghost" data-sheet="score">Punkteverlauf</button>
+      <button class="btn ghost" data-act="lobby">Zur Startseite</button>
+    </div>
+  </div></div>`;
+}
+
+/* ---------- Sheets ---------- */
+function sheetHTML(v){
+  if (!S.sheet) return '';
+  let title = '', body = '';
+  if (S.sheet === 'menu'){
+    title = 'Menü';
+    body = '<div class="menu">' +
+      (v && v.hand ? '<button data-sheet="score">Punktestand und Verlauf</button><button data-sheet="log">Was bisher geschah</button>' : '') +
+      '<button data-sheet="rules">Spielregeln</button>' +
+      (v && S.mode !== 'local' ? '<button data-act="copy">Einladungslink kopieren</button>' : '') +
+      '<button data-act="lobby">' + (S.mode === 'local' ? 'Spiel beenden' : 'Zur Startseite') + '</button></div>';
+  } else if (S.sheet === 'score' && v){
+    title = 'Punktestand';
+    const sides = [...Array(C.nSides(v)).keys()];
+    const hist = v.history || [];
+    body = '<table class="tbl"><thead><tr><th>Runde</th>' + sides.map(s => '<th>' + esc(sideShort(v, s)) + '</th>').join('') + '</tr></thead><tbody>' +
+      hist.map(hh => '<tr><td>' + hh.handNo + '</td>' + hh.totals.map(t => '<td>' + (t > 0 ? '+' : '') + t + '</td>').join('') + '</tr>').join('') +
+      '<tr><td><b>Gesamt</b></td>' + sides.map(s => '<td class="big">' + v.scores[s] + '</td>').join('') + '</tr>' +
+      '<tr><td class="muted">Erstes Auslegen</td>' + sides.map(s => '<td class="muted">' + C.minMeld(v.scores[s]) + '</td>').join('') + '</tr></tbody></table>' +
+      '<p class="muted" style="margin-top:12px">Gewonnen hat, wer zuerst ' + C.TARGET + ' Punkte erreicht.</p>';
+  } else if (S.sheet === 'log' && v){
+    title = 'Was bisher geschah';
+    body = '<div class="log">' + (v.log || []).slice().reverse().map(l => '<div>' + esc(l) + '</div>').join('') + '</div>';
+  } else if (S.sheet === 'rules'){
+    title = 'Spielregeln';
+    body = RULES;
+  }
+  return `<div class="scrim" data-act="closesheet"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-h" data-stop="1">
+    <div class="grab"></div><div class="sheet-h"><h2 id="sh-h">${title}</h2><button class="icon-btn" data-act="closesheet" aria-label="Schließen">${icon.close}</button></div>${body}</div></div>`;
+}
+const RULES = `<div class="rules">
+  <h3>Karten</h3><p>Zwei Decks und vier Joker, zusammen 108 Karten. Joker und Zweien sind Wildkarten. Jeder bekommt 13 Karten. Zu viert spielen zwei Teams, Partner sitzen sich gegenüber.</p>
+  <h3>Dein Zug</h3><p>Zieh eine Karte vom Talon oder nimm den ganzen Ablagestapel. Leg dann Kombinationen aus oder an. Zum Schluss wirfst du eine Karte ab.</p>
+  <h3>Kombinationen</h3><p>Mindestens drei Karten gleichen Rangs, davon mindestens zwei natürliche und höchstens drei Wildkarten. Jede Seite hat pro Rang nur eine Kombination. Eine Kombination nur aus Wildkarten ist auch erlaubt, mit beliebig vielen Jokern und Zweien.</p>
+  <h3>Canasta</h3><p>Ab sieben Karten ist eine Kombination ein Canasta. Rein (ohne Wildkarten) 400, gemischt 300, nur aus Wildkarten 1000 Punkte. Legst du einen Canasta mit mindestens sieben Karten auf einmal aus der Hand aus, gibt es 100 Punkte extra.</p>
+  <h3>Erstes Auslegen</h3><p>Die erste Auslage einer Runde braucht Mindestpunkte: unter 1500 Punkten Spielstand 50, bis 2995 sind es 90, ab 3000 dann 120. Es zählen nur die Kartenwerte.</p>
+  <h3>Kartenwerte</h3><p>Joker 50, Ass und Zwei 20, König bis Acht 10, Sieben bis Vier und schwarze Drei 5.</p>
+  <h3>Dreien</h3><p>Rote Dreien werden sofort ausgelegt und ersetzt. Jede zählt 100 Punkte, aber nur, wenn deine Seite am Rundenende mindestens einen Canasta hat. Sonst zählt sie −100. Schwarze Dreien sperren den Ablagestapel für den nächsten Spieler. Auslegen darfst du sie nur beim Ausgehen. Jede schwarze Drei, die am Rundenende noch auf der Hand ist, kostet 100 Punkte.</p>
+  <h3>Ablagestapel</h3><p>Die oberste Karte musst du sofort auslegen. Dafür brauchst du ein natürliches Paar aus der Hand, oder, wenn der Stapel nicht eingefroren ist, eine natürliche Karte und eine Wildkarte oder eine eigene passende Kombination. Eingefroren ist der Stapel, wenn eine Wildkarte darin liegt, und für eine Seite ohne Auslage. Liegt oben eine Wildkarte, kann ihn niemand nehmen.</p>
+  <h3>Ausgehen</h3><p>Mit mindestens einem Canasta darfst du ausgehen. Zu viert musst du vorher deinen Partner fragen. Ein Nein gilt für diesen Zug. Ausgehen bringt 100 Punkte, verdeckt 200. Wer noch nicht ausgehen darf, behält nach dem Auslegen mindestens zwei Karten.</p>
+  <h3>Wertung</h3><p>Ausgelegte Karten und Boni zählen plus, Karten auf der Hand minus. Wer zuerst ${C.TARGET} Punkte hat, gewinnt.</p>
+  <h3>Bedienung</h3><p>Tippe Karten an, um sie auszuwählen, oder zieh sie direkt auf eine Kombination, auf „Neue Kombination“ oder auf den Ablagestapel. Tippen auf eine leuchtende Kombination legt die gewählten Karten dort an. Solange deine Seite noch nichts ausgelegt hat, sammelst du Entwürfe und tippst dann auf „Auslegen“.</p>
+</div>`;
+
+/* ---------- Spielzüge aus der Oberfläche ---------- */
+function vx(){ const v = view(); return v && v.hand ? { v, x: ctx(v) } : null; }
+function stageGroup(ids){
+  const o = vx(); if (!o) return;
+  if (o.x.phase === 'draw'){
+    // im Ziehen-Zug: Gruppe für den Ablagestapel oder zusätzliche Kombination
+    try { C.checkGroup(ids.concat(o.x.top)); }
+    catch(e){ try { C.checkGroup(ids); } catch(e2){ return toast(e2.message, 'err', 3600); } }
+  } else { try { C.checkGroup(ids); } catch(e){ return toast(e.message, 'err', 3600); } }
+  S.staged.groups.push(ids.slice()); S.sel.clear(); snap();
+  autoCommit();
+}
+function stageAdd(meldId, ids){
+  const o = vx(); if (!o) return;
+  const m = o.x.H.melds[o.x.mySide].find(mm => mm.id === meldId); if (!m) return;
+  const prev = S.staged.adds.filter(a => a.meldId === meldId).flatMap(a => a.cards);
+  try { C.checkAdd({ rank: m.rank, cards: m.cards.concat(prev) }, ids); } catch(e){ return toast(e.message, 'err', 3600); }
+  const a = S.staged.adds.find(z => z.meldId === meldId);
+  if (a) a.cards.push(...ids); else S.staged.adds.push({ meldId, cards: ids.slice() });
+  S.sel.clear(); snap();
+  autoCommit();
+}
+function autoCommit(){
+  const o = vx();
+  if (o && o.x.phase === 'play' && o.x.melded) return act('commit', [clone(S.staged)]);
+  render();
+}
+function takePile(extraIds){
+  const o = vx(); if (!o) return;
+  const { x } = o; const top = x.top;
+  if (!top) return toast('Der Ablagestapel ist leer.', 'err');
+  const staged = clone(S.staged);
+  if (extraIds && extraIds.length) staged.groups.push(extraIds.slice());
+  const used = new Set(staged.groups.flat().concat(staged.adds.flatMap(a => a.cards)));
+  const hasGroup = staged.groups.some(g => g.some(c => !C.isWild(c) && C.rank(c) === C.rank(top)));
+  if (!hasGroup && !C.isWild(top) && !C.isBlack3(top)){
+    const frozen = x.H.frozen || !x.melded;
+    const meld = x.H.melds[x.mySide].find(m => m.rank === C.rank(top));
+    if (!(meld && !frozen)){
+      const nat = x.hand.filter(c => !used.has(c) && !C.isWild(c) && C.rank(c) === C.rank(top));
+      if (nat.length >= 2) staged.groups.push(nat);
+      else if (!frozen && nat.length === 1){ const w = x.hand.find(c => C.isWild(c) && !used.has(c)); if (w) staged.groups.push([nat[0], w]); }
+    }
+  }
+  act('takePile', [staged], 'Stapel aufgenommen').then(ok => { if (!ok){ S.staged = { groups: staged.groups.filter(g => g.length >= 2), adds: staged.adds }; render(); } });
+}
+function discard(card){ snap(); return act('discard', [card]); }
+function dropOn(zone, ids){
+  const o = vx(); if (!o || !o.x.myTurn) return;
+  const { x } = o;
+  if (zone === 'discard'){
+    if (x.phase === 'play'){
+      if (ids.length !== 1) return toast('Zum Abwerfen genau eine Karte ziehen.', 'err');
+      if (S.staged.groups.length || S.staged.adds.length) return toast('Leg zuerst deine Entwürfe aus oder setz sie zurück.', 'err');
+      return discard(ids[0]);
+    }
+    return takePile(ids);
+  }
+  if (zone === 'new') return stageGroup(ids);
+  if (zone.startsWith('meld:')) return stageAdd(zone.slice(5), ids);
+}
+
+/* ---------- Drag & Drop (Maus und Touch) ---------- */
+function myTurnNow(){ const o = vx(); return o && o.x.myTurn; }
+app.addEventListener('pointerdown', e => {
+  const c = e.target.closest('[data-card]');
+  if (!c || e.button > 0) return;
+  audio();
+  S.press = { id: c.dataset.card, x: e.clientX, y: e.clientY };
+});
+window.addEventListener('pointermove', e => {
+  const p = S.press; if (!p) return;
+  if (!S.drag){
+    if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < 9) return;
+    if (!myTurnNow()){ S.press = null; return; }
+    const ids = S.sel.has(p.id) ? [...S.sel] : [p.id];
+    const g = document.createElement('div'); g.className = 'ghostdrag';
+    g.innerHTML = ids.slice(0, 5).map(c => cardHTML(c, { key: false })).join('') + (ids.length > 1 ? '<span class="badge">' + ids.length + '</span>' : '');
+    document.body.appendChild(g); document.body.classList.add('dragging');
+    ids.forEach(id => { const el = app.querySelector('[data-card="' + id + '"]'); if (el) el.parentElement.classList.add('lifting'); });
+    // passende Ziele hervorheben
+    const o = vx();
+    app.querySelectorAll('[data-drop]').forEach(z => { if (dropValid(z.dataset.drop, ids, o)) z.classList.add('drop-ok'); else z.classList.remove('drop-ok'); });
+    S.drag = { ids, ghost: g, over: null };
+  }
+  e.preventDefault();
+  const d = S.drag;
+  d.ghost.style.transform = 'translate(' + (e.clientX - 30) + 'px,' + (e.clientY - 60) + 'px) rotate(-4deg)';
+  const t = document.elementFromPoint(e.clientX, e.clientY);
+  const z = t && t.closest('[data-drop]');
+  if (d.over && d.over !== z) d.over.classList.remove('drop-hover');
+  if (z && z !== d.over) z.classList.add('drop-hover');
+  d.over = z;
+}, { passive: false });
+window.addEventListener('pointerup', e => {
+  const p = S.press; S.press = null;
+  if (S.drag){
+    const d = S.drag; S.drag = null;
+    d.ghost.remove(); document.body.classList.remove('dragging');
+    const zone = d.over && d.over.dataset.drop;
+    if (zone) dropOn(zone, d.ids);
+    else render();
+    if (S.renderQueued){ S.renderQueued = false; render(); }
+    return;
+  }
+  if (p && e.target.closest('[data-card="' + p.id + '"]')) toggleCard(p.id);
+});
+window.addEventListener('pointercancel', () => {
+  S.press = null;
+  if (S.drag){ S.drag.ghost.remove(); S.drag = null; document.body.classList.remove('dragging'); render(); }
+});
+function dropValid(zone, ids, o){
+  if (!o) return false;
+  const { x } = o;
+  try {
+    if (zone === 'discard'){
+      if (x.phase === 'play') return ids.length === 1 && !S.staged.groups.length && !S.staged.adds.length;
+      if (!x.top || C.isWild(x.top) || C.isBlack3(x.top)) return false;
+      C.checkGroup(ids.concat(x.top)); return true;
+    }
+    if (zone === 'new'){ if (x.phase === 'draw'){ try { C.checkGroup(ids.concat(x.top)); return true; } catch(e){} } C.checkGroup(ids); return true; }
+    if (zone.startsWith('meld:')){
+      const m = x.H.melds[x.mySide].find(mm => mm.id === zone.slice(5)); if (!m) return false;
+      const prev = S.staged.adds.filter(a => a.meldId === m.id).flatMap(a => a.cards);
+      C.checkAdd({ rank: m.rank, cards: m.cards.concat(prev) }, ids); return true;
+    }
+  } catch(e){ return false; }
+  return false;
+}
+function toggleCard(id){ if (S.sel.has(id)) S.sel.delete(id); else S.sel.add(id); snap(); render(); }
+
+/* ---------- Klicks & Tasten ---------- */
+app.addEventListener('click', e => {
+  if (e.target.closest('[data-card]')) return;               // läuft über pointerup
+  const t = e.target.closest('[data-act],[data-sheet],[data-open],[data-local],[data-pick],[data-drop],[data-stop]');
+  if (!t) return;
+  if (t.dataset.stop && !e.target.closest('[data-act],[data-sheet],[data-open],[data-drop]')) return;
+  audio();
+  if (t.dataset.sheet){ S.sheet = t.dataset.sheet; return render(); }
+  if (t.dataset.open){ readName(); return openGame(t.dataset.open); }
+  if (t.dataset.local) return startLocal(+t.dataset.local);
+  if (t.dataset.pick){ S.pick = +t.dataset.pick; return render(); }
+  if (t.dataset.act) return handle(t.dataset.act);
+  if (t.dataset.drop && S.sel.size) return dropOn(t.dataset.drop, [...S.sel]);
+  if (t.dataset.drop === 'new' && !S.sel.size) toast('Wähle zuerst mindestens drei passende Karten aus.');
+});
+app.addEventListener('keydown', e => {
+  const c = e.target.closest('[data-card]');
+  if (c && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); return toggleCard(c.dataset.card); }
+  const z = e.target.closest('[data-drop]');
+  if (z && !z.matches('button') && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); if (S.sel.size) dropOn(z.dataset.drop, [...S.sel]); }
+  if (e.target.matches('.codebox input')){
+    const i = +e.target.id.slice(1);
+    if (e.key === 'Backspace' && !e.target.value && i > 0) document.getElementById('c' + (i - 1)).focus();
+    if (e.key === 'Enter') joinByCode();
+  }
+});
+app.addEventListener('input', e => {
+  if (e.target.matches('.codebox input')){
+    const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const i = +e.target.id.slice(1);
+    if (v.length > 1){ v.split('').slice(0, 4 - i).forEach((ch, k) => { const el = document.getElementById('c' + (i + k)); if (el) el.value = ch; }); }
+    else e.target.value = v;
+    const next = document.getElementById('c' + Math.min(3, i + Math.max(1, v.length)));
+    if (v && next) next.focus();
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.sheet){ S.sheet = null; render(); } });
+let rt = null; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+
+function handle(a){
+  const o = vx();
+  switch (a){
+    case 'closesheet': S.sheet = null; return render();
+    case 'sound': S.sound = !S.sound; store.set('canasta.sound', S.sound ? '1' : '0'); if (S.sound) snap(); return render();
+    case 'lobby': return toLobby();
+    case 'create': return createGame();
+    case 'joincode': return joinByCode();
+    case 'join': { const n = readName(); if (n) act('join', [n], 'Du sitzt am Tisch'); return; }
+    case 'leave': return act('leave', []);
+    case 'shuffle': return act('shuffleTeams', [], 'Teams neu gemischt');
+    case 'start': return act('start', []);
+    case 'copy': return copyLink();
+    case 'reveal': S.cover = false; return render();
+    case 'draw': if (o && o.x.phase === 'draw' && o.x.H.stock.length){ snap(); act('drawStock', []); } return;
+    case 'pile':
+      if (!o || !o.x.myTurn) return;
+      if (o.x.phase === 'draw') return takePile(S.sel.size ? [...S.sel] : null);
+      if (S.sel.size === 1 && !S.staged.groups.length && !S.staged.adds.length) return discard([...S.sel][0]);
+      return toast('Wähle genau eine Karte aus, um sie abzuwerfen.');
+    case 'discard': if (S.sel.size === 1) discard([...S.sel][0]); return;
+    case 'commit': return act('commit', [clone(S.staged)], 'Ausgelegt');
+    case 'reset': S.sel.clear(); S.staged = { groups: [], adds: [] }; return render();
+    case 'askout': return act('askOut', []);
+    case 'outyes': return act('answerOut', [true]);
+    case 'outno': return act('answerOut', [false]);
+    case 'stockout': return act('stockOut', []);
+    case 'nexthand': return act('nexthand', []);
+    case 'rematch': return act('rematch', []);
+  }
+}
+
+/* ---------- Lobby-Logik ---------- */
+function readName(){
+  const el = document.getElementById('nick');
+  const n = ((el && el.value) || S.name || '').trim().slice(0, 18);
+  if (!n){ toast('Gib zuerst deinen Namen ein.', 'err'); if (el) el.focus(); return null; }
+  if (n !== S.name){ S.name = n; store.set('canasta.name', n); NET.hello(n); }
+  return n;
+}
+async function createGame(){
+  const n = readName(); if (!n) return;
+  S.busy = true; render();
+  try { const code = await NET.create(S.pick, n); S.busy = false; openGame(code); }
+  catch(e){ S.busy = false; toast(e.message, 'err', 4200); render(); }
+}
+function joinByCode(){
+  const code = [0, 1, 2, 3].map(i => (document.getElementById('c' + i) || {}).value || '').join('').toUpperCase();
+  if (code.length !== 4) return toast('Der Code hat vier Zeichen.', 'err');
+  readName(); openGame(code);
+}
+function openGame(code){
+  S.code = code; S.view = null; S.notFound = false; S.mode = 'game'; S.sheet = null;
+  S.sel.clear(); S.staged = { groups: [], adds: [] };
+  try { history.replaceState(null, '', '#' + code); } catch(e){}
+  store.set('canasta.code', code);
+  NET.open(code); render();
+}
+function toLobby(){
+  if (S.mode === 'game') NET.close();
+  S.mode = 'lobby'; S.code = null; S.view = null; S.local = null; S.sheet = null; document.title = 'Canasta';
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+  render();
+}
+function startLocal(n){
+  const names = [...Array(n)].map((_, i) => ((document.getElementById('ln' + i) || {}).value || '').trim() || 'Spieler ' + (i + 1));
+  const g = C.newGame('LOKAL', n, 'p0', names[0]);
+  for (let i = 1; i < n; i++){ g.players.push({ id: 'p' + i, name: names[i] }); g.playerIds.push('p' + i); }
+  C.startGame(g);
+  S.local = g; S.mode = 'local'; S.cover = true; S.sheet = null; S.sel.clear(); S.staged = { groups: [], adds: [] };
+  render();
+}
+function copyLink(){
+  const v = view(); if (!v) return;
+  const url = NET.shareUrl(v.code);
+  const done = () => toast('Link kopiert');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { const i = document.getElementById('share'); if (i){ i.select(); } toast('Markiere den Link und kopiere ihn.'); });
+  else { const i = document.getElementById('share'); if (i) i.select(); }
+}
+
+/* ---------- Start ---------- */
+async function boot(saved){
+  render();
+  const res = await NET.start({
+    onList: games => { S.games = games; if (S.mode === 'lobby') render(); },
+    onGame: v => { const prev = S.view; if (!v){ S.view = null; S.notFound = true; return render(); } S.notFound = false; S.view = v; onNewView(prev, v); },
+    onConn: (ok, note) => { const changed = S.conn !== ok || S.connNote !== note; S.conn = ok; S.connNote = note; if (changed && S.mode !== 'local') render(); }
+  }, S.name);
+  S.online = !!res.online;
+  if (!S.name && res.name){ S.name = res.name; }
+  const hash = (location.hash || '').replace('#', '').toUpperCase();
+  const code = /^[A-Z0-9]{4,6}$/.test(hash) ? hash : (saved && saved.code);
+  if (saved && saved.local){ S.local = saved.local; S.mode = 'local'; S.cover = true; render(); return; }
+  if (S.online && code) openGame(code); else { S.mode = 'lobby'; render(); }
+}
+const hot = window.claude && window.claude.hot;
+if (hot && hot.snapshot) hot.snapshot(() => ({ code: S.mode === 'game' ? S.code : null, local: S.mode === 'local' ? S.local : null }));
+if (hot && hot.ready) hot.ready(boot); else boot((hot && hot.data) || {});
+})();
+</script>
+</body>
+</html>
